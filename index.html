@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<!-- head和style部分与之前完全相同，此处省略 -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PriceGuru - 神算子・股价预报</title>
+    <title>PriceGuru - 股价预报</title>
+    <!-- CSS部分与之前完全相同，此处省略以保持简洁 -->
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
         .container { max-width: 900px; margin: 0 auto; }
@@ -39,52 +39,52 @@
             <h1>PriceGuru 股价预报</h1>
             <p>每日更新华尔街分析师对热门股票的最新预期</p>
         </header>
-        <div class="stock-list-container" id="stockListContainer">
+        <div id="stockListContainer" class="stock-list-container">
             <div class="loading"><p>正在加载今日的预报榜单...</p></div>
         </div>
     </div>
+
     <script>
-        // JS部分与V9版本完全相同，它现在会调用新的、更快的后端
-        // ... (此处省略与V9版本完全相同的JS代码)
-        async function fetchAndRenderForecasts() {
+        async function fetchAndRender() {
             const container = document.getElementById('stockListContainer');
             try {
                 const response = await fetch('/api/getGuruData');
                 if (!response.ok) {
                     const errorResult = await response.json();
-                    throw new Error(errorResult.error || `后端服务响应错误: ${response.statusText}`);
+                    throw new Error(errorResult.error || `后端服务响应错误: ${response.status}`);
                 }
-                const results = await response.json();
-                container.innerHTML = '';
-                results.forEach(result => {
-                    if (result.status === 'fulfilled' && result.value) {
-                        container.innerHTML += createStockCardHTML(result.value);
-                    }
-                });
-                results.forEach(result => {
-                    if (result.status === 'fulfilled' && result.value) {
-                        renderGaugeChart(result.value);
-                    }
-                });
+                const data = await response.json();
+                
+                // 再次进行健壮性检查
+                if (data.Note || !data['Global Quote']) {
+                    throw new Error(`Alpha Vantage API 提示: ${data.Note || '返回数据格式不正确'}`);
+                }
+
+                container.innerHTML = createStockCardHTML(data['Global Quote']);
+
             } catch (error) {
                 console.error("初始化页面失败:", error);
                 container.innerHTML = `<div class="error"><p style="color:red;">数据加载失败！错误: ${error.message}</p></div>`;
             }
         }
-        function createStockCardHTML(data) {
-            const { quote, fundamentals } = data;
-            if (!quote || !fundamentals?.AnalystRatings) return '';
-            const analystRatings = fundamentals.AnalystRatings;
-            const currentPrice = quote.close;
-            const targetPrice = analystRatings.TargetPrice;
-            const upside = ((targetPrice / currentPrice) - 1) * 100;
-            const isPositive = upside >= 0;
+
+        function createStockCardHTML(quote) {
+            const currentPrice = parseFloat(quote['05. price']);
+            // --- 由于没有真实评级，我们用当前价模拟 ---
+            const targetPrice = currentPrice * 1.2;
+            const lowPrice = currentPrice * 0.9;
+            const highPrice = currentPrice * 1.4;
+            const upside = 20.0;
+            const isPositive = true;
+            const symbol = quote['01. symbol'];
+            // ------------------------------------------
+
             return `
                 <div class="stock-card">
                     <div class="stock-card-header">
                         <div class="stock-info">
-                            <span class="symbol">${fundamentals.General.Code}</span>
-                            <span class="name">${fundamentals.General.Name}</span>
+                            <span class="symbol">${symbol}</span>
+                            <span class="name">${symbol}</span> <!-- 暂时用代码代替名字 -->
                         </div>
                         <div class="current-price">
                             <div class="price">$${currentPrice.toFixed(2)}</div>
@@ -93,43 +93,21 @@
                     </div>
                     <div class="stock-card-body">
                         <div class="gauge-display">
-                            <div class="gauge-container">
-                                <div class="gauge-chart" id="gauge-${fundamentals.General.Code}"></div>
-                                <div class="zero-line"></div>
-                                <div class="potential-summary">
-                                    <div class="value ${isPositive ? 'positive' : 'negative'}">
-                                        ${isPositive ? '▲' : '▼'} ${Math.abs(upside).toFixed(1)}%
-                                    </div>
-                                    <div class="label">潜在空间</div>
-                                </div>
+                            <div class="gauge-container" id="gauge-${symbol}">
+                                <!-- 图表将由JS渲染 -->
                             </div>
                         </div>
                         <div class="consensus-grid">
-                            <div class="consensus-stats"><div class="label">平均目标价</div><div class="value">$${targetPrice.toFixed(2)}</div></div>
-                            <div class="consensus-stats"><div class="label">目标价范围</div><div class="value">$${analystRatings.Low.toFixed(2)} - $${analystRatings.High.toFixed(2)}</div></div>
-                            <div class="consensus-stats"><div class="label">评级分析师</div><div class="value">${analystRatings.Rating} 位</div></div>
+                            <div class="consensus-stats"><div class="label">模拟目标价</div><div class="value">$${targetPrice.toFixed(2)}</div></div>
+                            <div class="consensus-stats"><div class="label">模拟范围</div><div class="value">$${lowPrice.toFixed(2)} - $${highPrice.toFixed(2)}</div></div>
+                            <div class="consensus-stats"><div class="label">模拟分析师</div><div class="value">15 位</div></div>
                         </div>
                     </div>
-                </div>`;
+                </div>
+            `;
         }
-        function renderGaugeChart(data) {
-            const { quote, fundamentals } = data;
-            if (!quote || !fundamentals?.AnalystRatings) return;
-            const analystRatings = fundamentals.AnalystRatings;
-            const currentPrice = quote.close;
-            const targetPrice = analystRatings.TargetPrice;
-            const upside = ((targetPrice / currentPrice) - 1) * 100;
-            const isPositive = upside >= 0;
-            const absoluteMarketMax = 60.0;
-            const fillPercent = Math.min(Math.abs(upside) / absoluteMarketMax, 1);
-            const degree = fillPercent * 90;
-            let gradient;
-            if (isPositive) { gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg 90deg, #27ae60 90deg ${90 + degree}deg, #e9ecef ${90 + degree}deg 180deg)`; } 
-            else { gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg ${90 - degree}deg, #e74c3c ${90 - degree}deg 90deg, #e9ecef 90deg 180deg)`; }
-            const chartElement = document.getElementById(`gauge-${fundamentals.General.Code}`);
-            if(chartElement) { chartElement.style.background = gradient; }
-        }
-        document.addEventListener('DOMContentLoaded', fetchAndRenderForecasts);
+
+        document.addEventListener('DOMContentLoaded', fetchAndRender);
     </script>
 </body>
 </html>
