@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PriceGuru - 股价预报 (推土机V2)</title>
-    <!-- CSS样式与我们最终的视觉稿完全一致 -->
+    <title>PriceGuru - 股价预报 (V2.1)</title>
+    <!-- CSS增加了柱状图和分析师列表的样式 -->
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
         .container { max-width: 900px; margin: 0 auto; }
@@ -17,7 +17,7 @@
         .stock-header .name { font-size: 1.2em; color: #555; }
         .card { background-color: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; }
         .card h2 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.2em; color: #34495e; }
-        .gauge-display { display: flex; align-items: flex-end; justify-content: center; gap: 15px; flex-wrap: wrap; padding: 10px 0; }
+        .gauge-display { display: flex; align-items: center; justify-content: center; gap: 15px; flex-wrap: wrap; padding: 10px 0; }
         .gauge-side-label { text-align: center; width: 120px; }
         .gauge-side-label .label { font-size: 0.9em; color: #7f8c8d; }
         .gauge-side-label .value { font-size: 1.8em; font-weight: bold; display: block; }
@@ -32,9 +32,19 @@
         .potential-summary .label { font-size: 0.9em; color: #7f8c8d; }
         .potential-summary .value.positive { color: #27ae60; }
         .potential-summary .value.negative { color: #e74c3c; }
-        .consensus-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center; }
-        .consensus-stats .label { font-size: 0.85em; color: #7f8c8d; }
-        .consensus-stats .value { font-size: 1.1em; font-weight: 500; }
+        .consensus-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; align-items: center; flex-wrap: wrap; }
+        @media (max-width: 576px) { .consensus-grid { grid-template-columns: 1fr; } }
+        .consensus-stats .stat-item { margin-bottom: 15px; }
+        .consensus-stats .label { font-size: 0.9em; color: #7f8c8d; }
+        .consensus-stats .value { font-size: 1.2em; font-weight: bold; }
+        .rating-chart .bar-wrapper { display: flex; align-items: center; margin-bottom: 8px; }
+        .rating-chart .bar-label { width: 50px; font-size: 0.9em; color: #555; }
+        .rating-chart .bar { height: 18px; border-radius: 3px; color: #fff; font-size: 0.8em; line-height: 18px; padding-left: 5px; box-sizing: border-box; transition: width 0.5s ease-out; text-shadow: 1px 1px 1px rgba(0,0,0,0.1); }
+        .bar-buy { background-color: #2ecc71; } .bar-hold { background-color: #f39c12; } .bar-sell { background-color: #e74c3c; }
+        .analyst-list-container { margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;}
+        .analyst-list { list-style-type: none; padding: 0; margin: 0; }
+        .analyst-list li { display: flex; justify-content: space-between; padding: 8px 5px; }
+        .analyst-list li:nth-child(odd) { background-color: #f9fafb; }
     </style>
 </head>
 <body>
@@ -76,13 +86,28 @@
             const symbol = quote['01. symbol'];
             
             // --- 由于Alpha Vantage不提供分析师数据，我们在这里“模拟” ---
-            const targetPrice = currentPrice * 1.18; // 模拟上涨18%
-            const lowPrice = currentPrice * 0.9;
-            const highPrice = currentPrice * 1.35;
-            const analystCount = 22;
-            const upside = 18.0;
-            const isPositive = true;
+            const targetPrice = 212.00;
+            const lowPrice = 195.00;
+            const highPrice = 230.00;
+            const analystCount = 5;
+            const ratings = { buy: 4, hold: 1, sell: 0 };
+            const analystDetails = [
+                { firm: '摩根士丹利', price: 220.00 },
+                { firm: '高盛', price: 230.00 },
+                { firm: '瑞银', price: 210.00 },
+                { firm: '杰富瑞', price: 205.00 },
+                { firm: '德银', price: 195.00 }
+            ];
+            const upside = ((targetPrice / currentPrice) - 1) * 100;
+            const isPositive = upside >= 0;
             // ----------------------------------------------------
+
+            let analystListHTML = '';
+            analystDetails.forEach(item => {
+                analystListHTML += `<li><span>${item.firm}</span><strong>$${item.price.toFixed(2)}</strong></li>`;
+            });
+            
+            const totalRatings = ratings.buy + ratings.hold + ratings.sell;
 
             return `
                 <div class="stock-header">
@@ -107,16 +132,27 @@
                         </div>
                         <div class="gauge-side-label">
                             <span class="value ${isPositive ? 'positive' : 'negative'}">$${targetPrice.toFixed(2)}</span>
-                            <span class="label">预测股价</span>
+                            <span class="label">未来6个月预测</span>
                         </div>
                     </div>
                 </div>
                 <div class="card">
                     <h2>分析师共识</h2>
                     <div class="consensus-grid">
-                        <div class="consensus-stats"><div class="label">平均目标价</div><div class="value">$${targetPrice.toFixed(2)}</div></div>
-                        <div class="consensus-stats"><div class="label">目标价范围</div><div class="value">$${lowPrice.toFixed(2)} - $${highPrice.toFixed(2)}</div></div>
-                        <div class="consensus-stats"><div class="label">评级分析师</div><div class="value">${analystCount} 位</div></div>
+                        <div class="consensus-stats">
+                            <div class="stat-item"><div class="label">评级分析师</div><div class="value">${analystCount} 位</div></div>
+                            <div class="stat-item"><div class="label">平均目标价</div><div class="value">$${targetPrice.toFixed(2)}</div></div>
+                            <div class="stat-item"><div class="label">目标价范围</div><div class="value">$${lowPrice.toFixed(2)} - $${highPrice.toFixed(2)}</div></div>
+                        </div>
+                        <div class="rating-chart">
+                            <div class="bar-wrapper"><div class="bar-label">买入</div><div class="bar bar-buy" style="width: ${(ratings.buy/totalRatings)*100}%">${ratings.buy}</div></div>
+                            <div class="bar-wrapper"><div class="bar-label">持有</div><div class="bar bar-hold" style="width: ${(ratings.hold/totalRatings)*100}%">${ratings.hold}</div></div>
+                            <div class="bar-wrapper"><div class="bar-label">卖出</div><div class="bar bar-sell" style="width: ${(ratings.sell/totalRatings)*100}%">${ratings.sell}</div></div>
+                        </div>
+                    </div>
+                    <div class="analyst-list-container">
+                        <h3>分析师列表</h3>
+                        <ul class="analyst-list">${analystListHTML}</ul>
                     </div>
                 </div>
             `;
@@ -125,11 +161,10 @@
         function renderGaugeChart(quote) {
             const currentPrice = parseFloat(quote['05. price']);
             const symbol = quote['01. symbol'];
-            // --- 模拟数据 ---
-            const upside = 18.0;
-            const isPositive = true;
-            const absoluteMarketMax = 35.2; // 假设市场最高是META的35.2%
-            // ------------------
+            const targetPrice = 212.00;
+            const upside = ((targetPrice / currentPrice) - 1) * 100;
+            const isPositive = upside >= 0;
+            const absoluteMarketMax = 35.2; 
             
             const fillPercent = Math.min(Math.abs(upside) / absoluteMarketMax, 1);
             const degree = fillPercent * 90;
