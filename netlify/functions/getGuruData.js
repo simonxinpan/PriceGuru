@@ -1,6 +1,6 @@
 // 文件路径: netlify/functions/getGuruData.js
 exports.handler = async function (event, context) {
-  const apiKey = 'YOUR_ALPHA_VANTAGE_KEY_HERE'; // 替换您的Key
+  const apiKey = 'LEDD4MQ1WUEN7HG2'; // 替换您的Key
   const tickers = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'NVDA', 'TSLA', 'META', 'LLY', 'JPM', 'V'];
 
   const fetchStockData = async (ticker) => {
