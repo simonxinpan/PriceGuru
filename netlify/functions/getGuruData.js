@@ -1,49 +1,37 @@
 // 文件路径: netlify/functions/getGuruData.js
 exports.handler = async function (event, context) {
   const apiKey = 'LEDD4MQ1WUEN7HG2'; // 替换您的Key
-  const tickers = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'NVDA', 'TSLA', 'META', 'LLY', 'JPM', 'V'];
+  const ticker = 'IBM'; // 我们只请求一只股票来确保成功！
 
-  const fetchStockData = async (ticker) => {
-    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${apiKey}`;
-    const response = await fetch(url);
-    if (!response.ok) { throw new Error(`请求 ${ticker} 失败`); }
-    return response.json();
-  };
+  const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${apiKey}`;
 
   try {
-    // Netlify函数的超时限制是10秒。我们不能在这里长时间等待。
-    // 所以，我们只请求第一只股票的数据作为快速响应的示例！
-    // 这能立刻验证API Key和基本逻辑是否正确。
-    const firstTicker = tickers[0];
-    const data = await fetchStockData(firstTicker);
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Alpha Vantage服务器响应错误: ${response.status}`);
+    }
+    const data = await response.json();
 
-    if (data['Error Message'] || !data['Global Quote']) {
-      throw new Error(`Alpha Vantage API返回错误: ${data['Note'] || data['Error Message']}`);
+    // 关键的错误处理：检查Alpha Vantage是否因为频率限制等原因返回了Note
+    if (data.Note) {
+      throw new Error(`Alpha Vantage API 提示: ${data.Note}`);
+    }
+    
+    // 检查核心数据是否存在
+    if (!data['Global Quote'] || !data['Global Quote']['05. price']) {
+        throw new Error('API返回的数据格式不正确，缺少Global Quote信息。');
     }
 
-    const formattedData = {
-      status: 'fulfilled',
-      value: {
-        quote: { close: parseFloat(data['Global Quote']['05. price']) },
-        fundamentals: {
-          General: { Code: data['GlobalQuote']['01. symbol'], Name: firstTicker },
-          AnalystRatings: { // --- 模拟的分析师数据 ---
-            TargetPrice: parseFloat(data['Global Quote']['05. price']) * 1.20,
-            Low: parseFloat(data['Global Quote']['05. price']) * 0.95,
-            High: parseFloat(data['Global Quote']['05. price']) * 1.35,
-            Rating: 15
-          }
-        }
-      }
-    };
-    
-    // 我们只返回第一只股票的数据，确保在10秒内完成
+    // 成功后，将数据作为JSON返回
     return {
       statusCode: 200,
-      body: JSON.stringify([formattedData]) // 以数组格式返回
+      body: JSON.stringify(data)
     };
-
   } catch (error) {
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+    console.error('后端函数执行出错:', error.message);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: error.message })
+    };
   }
 };
