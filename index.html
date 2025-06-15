@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>股价预报 - 神算子 (Prophet)</title>
+    <title>PriceGuru - 神算子・股价预报</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
         .container { max-width: 900px; margin: 0 auto; }
@@ -35,62 +35,47 @@
 <body>
     <div class="container">
         <header class="page-header">
-            <h1>股价预报</h1>
+            <h1>PriceGuru 股价预报</h1>
             <p>每日更新华尔街分析师对热门股票的最新预期</p>
         </header>
-
         <div class="stock-list-container" id="stockListContainer">
-            <div class="loading">
-                <p>正在加载今日的预报榜单...</p>
-            </div>
+            <div class="loading"><p>正在加载今日的预报榜单...</p></div>
         </div>
     </div>
-
     <script>
-        // --- 核心逻辑 ---
         async function fetchAndRenderForecasts() {
             const container = document.getElementById('stockListContainer');
             try {
-                // 调用我们自己的后端代理
-                const response = await fetch('/api/fetchForecast');
+                const response = await fetch('/api/getGuruData');
                 if (!response.ok) {
                     const errorResult = await response.json();
                     throw new Error(errorResult.error || `后端服务响应错误: ${response.statusText}`);
                 }
                 const results = await response.json();
-                console.log('成功从后端获取到所有股票数据', results);
-
-                container.innerHTML = ''; // 清空加载提示
-                
-                // 渲染每一张股票卡片
+                container.innerHTML = '';
                 results.forEach(result => {
-                    if (result.status === 'fulfilled') {
-                        const cardHTML = createStockCardHTML(result.value);
-                        container.innerHTML += cardHTML;
+                    if (result.status === 'fulfilled' && result.value) {
+                        container.innerHTML += createStockCardHTML(result.value);
                     }
                 });
-
-                // 为所有新生成的图表执行渲染
                 results.forEach(result => {
-                    if (result.status === 'fulfilled') {
+                    if (result.status === 'fulfilled' && result.value) {
                         renderGaugeChart(result.value);
                     }
                 });
-
             } catch (error) {
                 console.error("初始化页面失败:", error);
                 container.innerHTML = `<div class="error"><p style="color:red;">数据加载失败！错误: ${error.message}</p></div>`;
             }
         }
-
         function createStockCardHTML(data) {
             const { quote, fundamentals } = data;
+            if (!quote || !fundamentals?.AnalystRatings) return '';
             const analystRatings = fundamentals.AnalystRatings;
             const currentPrice = quote.close;
             const targetPrice = analystRatings.TargetPrice;
             const upside = ((targetPrice / currentPrice) - 1) * 100;
             const isPositive = upside >= 0;
-
             return `
                 <div class="stock-card">
                     <div class="stock-card-header">
@@ -117,46 +102,30 @@
                             </div>
                         </div>
                         <div class="consensus-grid">
-                            <div class="consensus-stats">
-                                <div class="label">平均目标价</div>
-                                <div class="value">$${targetPrice.toFixed(2)}</div>
-                            </div>
-                            <div class="consensus-stats">
-                                <div class="label">目标价范围</div>
-                                <div class="value">$${analystRatings.Low.toFixed(2)} - $${analystRatings.High.toFixed(2)}</div>
-                            </div>
-                            <div class="consensus-stats">
-                                <div class="label">评级分析师</div>
-                                <div class="value">${analystRatings.Rating} 位</div>
-                            </div>
+                            <div class="consensus-stats"><div class="label">平均目标价</div><div class="value">$${targetPrice.toFixed(2)}</div></div>
+                            <div class="consensus-stats"><div class="label">目标价范围</div><div class="value">$${analystRatings.Low.toFixed(2)} - $${analystRatings.High.toFixed(2)}</div></div>
+                            <div class="consensus-stats"><div class="label">评级分析师</div><div class="value">${analystRatings.Rating} 位</div></div>
                         </div>
                     </div>
-                </div>
-            `;
+                </div>`;
         }
-        
         function renderGaugeChart(data) {
             const { quote, fundamentals } = data;
+            if (!quote || !fundamentals?.AnalystRatings) return;
             const analystRatings = fundamentals.AnalystRatings;
             const currentPrice = quote.close;
             const targetPrice = analystRatings.TargetPrice;
             const upside = ((targetPrice / currentPrice) - 1) * 100;
             const isPositive = upside >= 0;
-            
-            // 模拟的市场最大潜力值
             const absoluteMarketMax = 60.0;
             const fillPercent = Math.min(Math.abs(upside) / absoluteMarketMax, 1);
             const degree = fillPercent * 90;
-
             let gradient;
-            if (isPositive) {
-                gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg 90deg, #27ae60 90deg ${90 + degree}deg, #e9ecef ${90 + degree}deg 180deg)`;
-            } else {
-                gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg ${90 - degree}deg, #e74c3c ${90 - degree}deg 90deg, #e9ecef 90deg 180deg)`;
-            }
-            document.getElementById(`gauge-${fundamentals.General.Code}`).style.background = gradient;
+            if (isPositive) { gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg 90deg, #27ae60 90deg ${90 + degree}deg, #e9ecef ${90 + degree}deg 180deg)`; } 
+            else { gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg ${90 - degree}deg, #e74c3c ${90 - degree}deg 90deg, #e9ecef 90deg 180deg)`; }
+            const chartElement = document.getElementById(`gauge-${fundamentals.General.Code}`);
+            if(chartElement) { chartElement.style.background = gradient; }
         }
-
         document.addEventListener('DOMContentLoaded', fetchAndRenderForecasts);
     </script>
 </body>
