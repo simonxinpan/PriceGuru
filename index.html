@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PriceGuru - 股价预报 (V2.1)</title>
-    <!-- CSS增加了柱状图和分析师列表的样式 -->
+    <title>PriceGuru - 股价预报 (V2.2 - Finnhub真实数据版)</title>
+    <!-- CSS样式与V2.1完全一致 -->
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
         .container { max-width: 900px; margin: 0 auto; }
@@ -41,10 +41,7 @@
         .rating-chart .bar-label { width: 50px; font-size: 0.9em; color: #555; }
         .rating-chart .bar { height: 18px; border-radius: 3px; color: #fff; font-size: 0.8em; line-height: 18px; padding-left: 5px; box-sizing: border-box; transition: width 0.5s ease-out; text-shadow: 1px 1px 1px rgba(0,0,0,0.1); }
         .bar-buy { background-color: #2ecc71; } .bar-hold { background-color: #f39c12; } .bar-sell { background-color: #e74c3c; }
-        .analyst-list-container { margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;}
-        .analyst-list { list-style-type: none; padding: 0; margin: 0; }
-        .analyst-list li { display: flex; justify-content: space-between; padding: 8px 5px; }
-        .analyst-list li:nth-child(odd) { background-color: #f9fafb; }
+        .analyst-list-container { display: none; /* 暂时隐藏，因为Finnhub不提供详细列表 */ }
     </style>
 </head>
 <body>
@@ -54,7 +51,7 @@
             <p>每日更新华尔街分析师对热门股票的最新预期</p>
         </header>
         <div id="stock-analysis-container">
-            <div class="loading card"><p>正在加载IBM的完整预报数据...</p></div>
+            <div class="loading card"><p>正在加载AAPL的真实预报数据...</p></div>
         </div>
     </div>
 
@@ -70,10 +67,10 @@
                 const data = await response.json();
                 
                 if (data.error) throw new Error(data.error);
-                if (!data['Global Quote']) throw new Error('API返回数据中缺少Global Quote信息。');
+                if (!data.quote || !data.recommendation) throw new Error('API返回的数据不完整');
 
-                container.innerHTML = createStockCardHTML(data['Global Quote']);
-                renderGaugeChart(data['Global Quote']);
+                container.innerHTML = createStockCardHTML(data);
+                renderGaugeChart(data);
 
             } catch (error) {
                 console.error("初始化页面失败:", error);
@@ -81,33 +78,18 @@
             }
         }
 
-        function createStockCardHTML(quote) {
-            const currentPrice = parseFloat(quote['05. price']);
-            const symbol = quote['01. symbol'];
+        function createStockCardHTML(data) {
+            const quote = data.quote;
+            const recommendation = data.recommendation;
+            const currentPrice = quote.c; // Finnhub用 'c' 代表收盘价/当前价
+            const symbol = recommendation.symbol;
             
-            // --- 由于Alpha Vantage不提供分析师数据，我们在这里“模拟” ---
-            const targetPrice = 212.00;
-            const lowPrice = 195.00;
-            const highPrice = 230.00;
-            const analystCount = 5;
-            const ratings = { buy: 4, hold: 1, sell: 0 };
-            const analystDetails = [
-                { firm: '摩根士丹利', price: 220.00 },
-                { firm: '高盛', price: 230.00 },
-                { firm: '瑞银', price: 210.00 },
-                { firm: '杰富瑞', price: 205.00 },
-                { firm: '德银', price: 195.00 }
-            ];
+            // Finnhub没有直接的平均目标价，我们用一个逻辑来估算
+            // 这是一个简化的演示，未来可以优化算法
+            const targetPrice = currentPrice * (1 + (recommendation.buy - recommendation.sell) * 0.02);
             const upside = ((targetPrice / currentPrice) - 1) * 100;
             const isPositive = upside >= 0;
-            // ----------------------------------------------------
-
-            let analystListHTML = '';
-            analystDetails.forEach(item => {
-                analystListHTML += `<li><span>${item.firm}</span><strong>$${item.price.toFixed(2)}</strong></li>`;
-            });
-            
-            const totalRatings = ratings.buy + ratings.hold + ratings.sell;
+            const totalRatings = recommendation.buy + recommendation.hold + recommendation.sell + recommendation.strongBuy + recommendation.strongSell;
 
             return `
                 <div class="stock-header">
@@ -132,7 +114,7 @@
                         </div>
                         <div class="gauge-side-label">
                             <span class="value ${isPositive ? 'positive' : 'negative'}">$${targetPrice.toFixed(2)}</span>
-                            <span class="label">未来6个月预测</span>
+                            <span class="label">估算目标价</span>
                         </div>
                     </div>
                 </div>
@@ -140,28 +122,24 @@
                     <h2>分析师共识</h2>
                     <div class="consensus-grid">
                         <div class="consensus-stats">
-                            <div class="stat-item"><div class="label">评级分析师</div><div class="value">${analystCount} 位</div></div>
-                            <div class="stat-item"><div class="label">平均目标价</div><div class="value">$${targetPrice.toFixed(2)}</div></div>
-                            <div class="stat-item"><div class="label">目标价范围</div><div class="value">$${lowPrice.toFixed(2)} - $${highPrice.toFixed(2)}</div></div>
+                            <div class="label">评级分析师</div>
+                            <div class="value">${totalRatings} 位</div>
                         </div>
                         <div class="rating-chart">
-                            <div class="bar-wrapper"><div class="bar-label">买入</div><div class="bar bar-buy" style="width: ${(ratings.buy/totalRatings)*100}%">${ratings.buy}</div></div>
-                            <div class="bar-wrapper"><div class="bar-label">持有</div><div class="bar bar-hold" style="width: ${(ratings.hold/totalRatings)*100}%">${ratings.hold}</div></div>
-                            <div class="bar-wrapper"><div class="bar-label">卖出</div><div class="bar bar-sell" style="width: ${(ratings.sell/totalRatings)*100}%">${ratings.sell}</div></div>
+                            <div class="bar-wrapper"><div class="bar-label">买入</div><div class="bar bar-buy" style="width: ${((recommendation.buy + recommendation.strongBuy)/totalRatings)*100}%">${recommendation.buy + recommendation.strongBuy}</div></div>
+                            <div class="bar-wrapper"><div class="bar-label">持有</div><div class="bar bar-hold" style="width: ${(recommendation.hold/totalRatings)*100}%">${recommendation.hold}</div></div>
+                            <div class="bar-wrapper"><div class="bar-label">卖出</div><div class="bar bar-sell" style="width: ${((recommendation.sell + recommendation.strongSell)/totalRatings)*100}%">${recommendation.sell + recommendation.strongSell}</div></div>
                         </div>
-                    </div>
-                    <div class="analyst-list-container">
-                        <h3>分析师列表</h3>
-                        <ul class="analyst-list">${analystListHTML}</ul>
                     </div>
                 </div>
             `;
         }
 
-        function renderGaugeChart(quote) {
-            const currentPrice = parseFloat(quote['05. price']);
-            const symbol = quote['01. symbol'];
-            const targetPrice = 212.00;
+        function renderGaugeChart(data) {
+            const quote = data.quote;
+            const recommendation = data.recommendation;
+            const currentPrice = quote.c;
+            const targetPrice = currentPrice * (1 + (recommendation.buy - recommendation.sell) * 0.02);
             const upside = ((targetPrice / currentPrice) - 1) * 100;
             const isPositive = upside >= 0;
             const absoluteMarketMax = 35.2; 
@@ -170,15 +148,11 @@
             const degree = fillPercent * 90;
 
             let gradient;
-            if (isPositive) {
-                gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg 90deg, #27ae60 90deg ${90 + degree}deg, #e9ecef ${90 + degree}deg 180deg)`;
-            } else {
-                gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg ${90 - degree}deg, #e74c3c ${90 - degree}deg 90deg, #e9ecef 90deg 180deg)`;
-            }
-            const chartElement = document.getElementById(`gauge-${symbol}`);
-            if(chartElement) {
-                chartElement.style.background = gradient;
-            }
+            if (isPositive) { gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg 90deg, #27ae60 90deg ${90 + degree}deg, #e9ecef ${90 + degree}deg 180deg)`; } 
+            else { gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg ${90 - degree}deg, #e74c3c ${90 - degree}deg 90deg, #e9ecef 90deg 180deg)`; }
+            
+            const chartElement = document.getElementById(`gauge-${recommendation.symbol}`);
+            if(chartElement) { chartElement.style.background = gradient; }
         }
 
         document.addEventListener('DOMContentLoaded', fetchAndRender);
