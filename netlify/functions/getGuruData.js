@@ -1,31 +1,45 @@
 // 文件路径: netlify/functions/getGuruData.js
-exports.handler = async function (event, context) {
-  const apiKey = 'LEDD4MQ1WUEN7HG2'; // 替换您的Key
-  const ticker = 'IBM'; // 我们只请求一只股票来确保成功！
+const fetch = require('node-fetch');
 
-  const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${apiKey}`;
+exports.handler = async function (event, context) {
+  const apiKey = 'd14ml61r01qq13os71igd14ml61r01qq13os71j0'; // 替换为您的Finnhub API Key
+  const ticker = 'AAPL'; // 我们仍然只请求一只股票来确保稳定
+
+  // 我们需要调用两个API端点
+  const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${apiKey}`;
+  const recommendationUrl = `https://finnhub.io/api/v1/stock/recommendation?symbol=${ticker}&token=${apiKey}`;
 
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Alpha Vantage服务器响应错误: ${response.status}`);
-    }
-    const data = await response.json();
-
-    // 关键的错误处理：检查Alpha Vantage是否因为频率限制等原因返回了Note
-    if (data.Note) {
-      throw new Error(`Alpha Vantage API 提示: ${data.Note}`);
-    }
+    console.log(`开始为 ${ticker} 并行获取股价和评级...`);
     
-    // 检查核心数据是否存在
-    if (!data['Global Quote'] || !data['Global Quote']['05. price']) {
-        throw new Error('API返回的数据格式不正确，缺少Global Quote信息。');
+    // 并行发起两个API请求，效率更高
+    const [quoteResponse, recommendationResponse] = await Promise.all([
+      fetch(quoteUrl),
+      fetch(recommendationUrl)
+    ]);
+
+    if (!quoteResponse.ok) throw new Error(`获取股价失败: ${quoteResponse.statusText}`);
+    if (!recommendationResponse.ok) throw new Error(`获取分析师评级失败: ${recommendationResponse.statusText}`);
+
+    const quoteData = await quoteResponse.json();
+    const recommendationData = await recommendationResponse.json();
+
+    // Finnhub的推荐数据是一个数组，通常我们只需要最新的一个
+    const latestRecommendation = (recommendationData && recommendationData.length > 0) ? recommendationData[0] : null;
+
+    if (!quoteData || !latestRecommendation) {
+        throw new Error('API返回的数据不完整');
     }
 
-    // 成功后，将数据作为JSON返回
+    console.log('成功从Finnhub获取到所有数据!');
+    
+    // 将两份数据整合后返回给前端
     return {
       statusCode: 200,
-      body: JSON.stringify(data)
+      body: JSON.stringify({
+        quote: quoteData,
+        recommendation: latestRecommendation
+      })
     };
   } catch (error) {
     console.error('后端函数执行出错:', error.message);
