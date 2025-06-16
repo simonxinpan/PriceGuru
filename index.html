@@ -3,34 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PriceGuru - 股价预报</title>
-    <!-- CSS部分与之前完全相同，此处省略以保持简洁 -->
+    <title>PriceGuru - 股价预报 (V2.2 最终版)</title>
+    <!-- 所有CSS样式与您最终确认的原型完全一致 -->
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
         .container { max-width: 900px; margin: 0 auto; }
         .page-header { text-align: center; margin-bottom: 30px; }
         .page-header h1 { font-size: 2.5em; color: #2c3e50; margin: 0 0 5px 0; }
         .page-header p { font-size: 1.1em; color: #7f8c8d; margin: 0; }
-        .stock-list-container .loading, .stock-list-container .error { text-align: center; padding: 40px; background-color: #fff; border-radius: 8px; }
-        .stock-card { background-color: #fff; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; }
-        .stock-card-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background-color: #f8f9fa; border-bottom: 1px solid #e9ecef; }
-        .stock-info .symbol { font-size: 1.8em; font-weight: bold; }
-        .stock-info .name { color: #7f8c8d; }
-        .current-price .price { font-size: 1.8em; font-weight: bold; }
-        .current-price .label { font-size: 0.8em; color: #7f8c8d; text-align: right; }
-        .stock-card-body { padding: 20px; }
-        .gauge-display { display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap; }
-        .gauge-container { position: relative; width: 180px; height: 90px; }
-        .gauge-chart { width: 100%; height: 100%; background: #e9ecef; border-radius: 90px 90px 0 0; }
-        .zero-line { position: absolute; top: 0; left: 50%; width: 2px; height: 12px; background-image: linear-gradient(to bottom, #bdc3c7 60%, transparent 40%); background-size: 2px 5px; }
-        .potential-summary { text-align: center; width: 100%; margin-top: -65px; position: relative; pointer-events: none;}
-        .potential-summary .value { font-size: 1.8em; font-weight: bold; }
-        .potential-summary .label { font-size: 0.8em; color: #7f8c8d; }
+        #stock-analysis-container .loading, #stock-analysis-container .error { text-align: center; padding: 40px; background-color: #fff; border-radius: 8px; }
+        .stock-header { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+        .stock-header .symbol { font-size: 2em; font-weight: bold; }
+        .stock-header .name { font-size: 1.2em; color: #555; }
+        .card { background-color: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; }
+        .card h2 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.2em; color: #34495e; }
+        .potential-summary { margin-bottom: 15px; text-align: center; }
+        .potential-summary .value { font-size: 2.8em; font-weight: bold; line-height: 1.1; }
+        .potential-summary .label { font-size: 1.1em; color: #7f8c8d; }
         .potential-summary .value.positive { color: #27ae60; }
         .potential-summary .value.negative { color: #e74c3c; }
-        .consensus-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center; margin-top: 25px; padding-top: 20px; border-top: 1px solid #f1f1f1; }
-        .consensus-stats .label { font-size: 0.85em; color: #7f8c8d; }
-        .consensus-stats .value { font-size: 1.1em; font-weight: 500; }
+        .gauge-container { position: relative; width: 200px; height: 100px; margin: 0 auto; }
+        .gauge-chart { width: 100%; height: 100%; background: #e9ecef; border-radius: 100px 100px 0 0; }
+        .zero-line { position: absolute; top: 0; left: 50%; width: 2px; height: 12px; background-image: linear-gradient(to bottom, #bdc3c7 60%, transparent 40%); background-size: 2px 5px; }
+        .price-labels { display: flex; justify-content: space-between; max-width: 240px; margin: 5px auto 0 auto; }
+        .price-labels .label { font-size: 0.9em; color: #7f8c8d; }
+        .price-labels .value { font-size: 1.2em; font-weight: 500; }
+        .price-labels .value.positive { color: #27ae60; }
+        .price-labels .value.negative { color: #e74c3c; }
+        .consensus-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; align-items: center; flex-wrap: wrap; }
+        @media (max-width: 576px) { .consensus-grid { grid-template-columns: 1fr; } }
+        .consensus-stats .stat-item { margin-bottom: 15px; }
+        .consensus-stats .label { font-size: 0.9em; color: #7f8c8d; }
+        .consensus-stats .value { font-size: 1.2em; font-weight: bold; }
+        .rating-chart .bar-wrapper { display: flex; align-items: center; margin-bottom: 8px; }
+        .rating-chart .bar-label { width: 50px; font-size: 0.9em; color: #555; }
+        .rating-chart .bar { height: 18px; border-radius: 3px; color: #fff; font-size: 0.8em; line-height: 18px; padding-left: 5px; box-sizing: border-box; transition: width 0.5s ease-out; text-shadow: 1px 1px 1px rgba(0,0,0,0.1); }
+        .bar-buy { background-color: #2ecc71; } .bar-hold { background-color: #f39c12; } .bar-sell { background-color: #e74c3c; }
+        .analyst-list-container { margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;}
+        .analyst-list { list-style-type: none; padding: 0; margin: 0; }
+        .analyst-list li { display: flex; justify-content: space-between; padding: 8px 5px; }
+        .analyst-list li:nth-child(odd) { background-color: #f9fafb; }
     </style>
 </head>
 <body>
@@ -39,75 +51,125 @@
             <h1>PriceGuru 股价预报</h1>
             <p>每日更新华尔街分析师对热门股票的最新预期</p>
         </header>
-        <div id="stockListContainer" class="stock-list-container">
-            <div class="loading"><p>正在加载今日的预报榜单...</p></div>
+        <div id="stock-analysis-container">
+            <!-- 这个区域的内容将被JS动态填充 -->
         </div>
     </div>
 
     <script>
-        async function fetchAndRender() {
-            const container = document.getElementById('stockListContainer');
-            try {
-                const response = await fetch('/api/getGuruData');
-                if (!response.ok) {
-                    const errorResult = await response.json();
-                    throw new Error(errorResult.error || `后端服务响应错误: ${response.status}`);
-                }
-                const data = await response.json();
-                
-                // 再次进行健壮性检查
-                if (data.Note || !data['Global Quote']) {
-                    throw new Error(`Alpha Vantage API 提示: ${data.Note || '返回数据格式不正确'}`);
-                }
-
-                container.innerHTML = createStockCardHTML(data['Global Quote']);
-
-            } catch (error) {
-                console.error("初始化页面失败:", error);
-                container.innerHTML = `<div class="error"><p style="color:red;">数据加载失败！错误: ${error.message}</p></div>`;
+        // --- 1. 模拟数据 (Mock Data) ---
+        // 我们将所有需要的数据直接写在这里，不依赖任何网络请求
+        const mockData = {
+            symbol: 'AAPL',
+            name: '苹果公司',
+            currentPrice: 196.45,
+            analystConsensus: {
+                targetPrice: 282.89,
+                lowPrice: 249.50,
+                highPrice: 374.25,
+                analystCount: 57,
+                ratings: {
+                    buy: 40,
+                    hold: 13,
+                    sell: 4
+                },
+                details: [
+                    { firm: '摩根士丹利', price: 220.00 },
+                    { firm: '高盛', price: 230.00 },
+                    { firm: '瑞银', price: 210.00 },
+                    { firm: '杰富瑞', price: 205.00 },
+                    { firm: '德银', price: 195.00 }
+                ]
             }
+        };
+
+        // --- 2. 页面渲染主函数 ---
+        function renderPage(data) {
+            const container = document.getElementById('stock-analysis-container');
+            container.innerHTML = createStockCardHTML(data);
+            renderGaugeChart(data);
         }
 
-        function createStockCardHTML(quote) {
-            const currentPrice = parseFloat(quote['05. price']);
-            // --- 由于没有真实评级，我们用当前价模拟 ---
-            const targetPrice = currentPrice * 1.2;
-            const lowPrice = currentPrice * 0.9;
-            const highPrice = currentPrice * 1.4;
-            const upside = 20.0;
-            const isPositive = true;
-            const symbol = quote['01. symbol'];
-            // ------------------------------------------
+        // --- 3. 动态生成HTML的辅助函数 ---
+        function createStockCardHTML(data) {
+            const { symbol, name, currentPrice, analystConsensus } = data;
+            const { targetPrice, lowPrice, highPrice, analystCount, ratings, details } = analystConsensus;
+            const upside = ((targetPrice / currentPrice) - 1) * 100;
+            const isPositive = upside >= 0;
+
+            let analystListHTML = '';
+            details.forEach(item => {
+                analystListHTML += `<li><span>${item.firm}</span><strong>$${item.price.toFixed(2)}</strong></li>`;
+            });
+
+            const totalRatings = ratings.buy + ratings.hold + ratings.sell;
 
             return `
-                <div class="stock-card">
-                    <div class="stock-card-header">
-                        <div class="stock-info">
-                            <span class="symbol">${symbol}</span>
-                            <span class="name">${symbol}</span> <!-- 暂时用代码代替名字 -->
+                <div class="stock-header">
+                    <div><div class="symbol">${symbol}</div><div class="name">${name}</div></div>
+                </div>
+                <div class="card">
+                    <div class="potential-summary">
+                        <div class="value ${isPositive ? 'positive' : 'negative'}">${isPositive ? '▲' : '▼'} ${Math.abs(upside).toFixed(1)}%</div>
+                        <div class="label">潜在空间</div>
+                    </div>
+                    <div class="gauge-display">
+                        <div class="gauge-container" id="gauge-${symbol}"></div>
+                    </div>
+                    <div class="price-labels">
+                        <div><div class="label">当前股价</div><div class="value">$${currentPrice.toFixed(2)}</div></div>
+                        <div><div class="label">估算目标价</div><div class="value ${isPositive ? 'positive' : 'negative'}">$${targetPrice.toFixed(2)}</div></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2>分析师共识</h2>
+                    <div class="consensus-grid">
+                        <div class="consensus-stats">
+                            <div class="stat-item"><div class="label">评级分析师</div><div class="value">${analystCount} 位</div></div>
+                            <div class="stat-item"><div class="label">平均目标价</div><div class="value">$${targetPrice.toFixed(2)}</div></div>
+                            <div class="stat-item"><div class="label">目标价范围</div><div class="value">$${lowPrice.toFixed(2)} - $${highPrice.toFixed(2)}</div></div>
                         </div>
-                        <div class="current-price">
-                            <div class="price">$${currentPrice.toFixed(2)}</div>
-                            <div class="label">当前股价</div>
+                        <div class="rating-chart">
+                            <div class="bar-wrapper"><div class="bar-label">买入</div><div class="bar bar-buy" style="width: ${(ratings.buy/totalRatings)*100}%">${ratings.buy}</div></div>
+                            <div class="bar-wrapper"><div class="bar-label">持有</div><div class="bar bar-hold" style="width: ${(ratings.hold/totalRatings)*100}%">${ratings.hold}</div></div>
+                            <div class="bar-wrapper"><div class="bar-label">卖出</div><div class="bar bar-sell" style="width: ${(ratings.sell/totalRatings)*100}%">${ratings.sell}</div></div>
                         </div>
                     </div>
-                    <div class="stock-card-body">
-                        <div class="gauge-display">
-                            <div class="gauge-container" id="gauge-${symbol}">
-                                <!-- 图表将由JS渲染 -->
-                            </div>
-                        </div>
-                        <div class="consensus-grid">
-                            <div class="consensus-stats"><div class="label">模拟目标价</div><div class="value">$${targetPrice.toFixed(2)}</div></div>
-                            <div class="consensus-stats"><div class="label">模拟范围</div><div class="value">$${lowPrice.toFixed(2)} - $${highPrice.toFixed(2)}</div></div>
-                            <div class="consensus-stats"><div class="label">模拟分析师</div><div class="value">15 位</div></div>
-                        </div>
+                    <div class="analyst-list-container">
+                        <h3>分析师列表</h3>
+                        <ul class="analyst-list">${analystListHTML}</ul>
                     </div>
                 </div>
             `;
         }
 
-        document.addEventListener('DOMContentLoaded', fetchAndRender);
+        // --- 4. 更新图表的函数 ---
+        function renderGaugeChart(data) {
+            const { symbol, currentPrice, analystConsensus } = data;
+            const { targetPrice } = analystConsensus;
+            const upside = ((targetPrice / currentPrice) - 1) * 100;
+            const isPositive = upside >= 0;
+            const absoluteMarketMax = 45.0; // 假设市场最高潜力是45%
+            
+            const fillPercent = Math.min(Math.abs(upside) / absoluteMarketMax, 1);
+            const degree = fillPercent * 90;
+            let gradient;
+            if (isPositive) { gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg 90deg, #27ae60 90deg ${90 + degree}deg, #e9ecef ${90 + degree}deg 180deg)`; } 
+            else { gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg ${90 - degree}deg, #e74c3c ${90 - degree}deg 90deg, #e9ecef 90deg 180deg)`; }
+            
+            const chartElement = document.getElementById(`gauge-${symbol}`);
+            const chartContainer = document.createElement('div');
+            chartContainer.className = 'gauge-chart';
+            chartContainer.style.background = gradient;
+            const zeroLine = document.createElement('div');
+            zeroLine.className = 'zero-line';
+            chartElement.innerHTML = '';
+            chartElement.appendChild(chartContainer);
+            chartElement.appendChild(zeroLine);
+        }
+
+        // --- 5. 页面加载完成后执行 ---
+        document.addEventListener('DOMContentLoaded', () => renderPage(mockData));
     </script>
 </body>
 </html>
