@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+<!-- head和style部分与之前完全一致 -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PriceGuru - 股价预报 (V2.7 最终版)</title>
-    <!-- 所有CSS样式与之前完全一致 -->
+    <title>PriceGuru - 股价预报 (终极容错版)</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
         .container { max-width: 900px; margin: 0 auto; }
@@ -45,6 +45,7 @@
         .analyst-list { list-style-type: none; padding: 0; margin: 0; }
         .analyst-list li { display: flex; justify-content: space-between; padding: 8px 5px; }
         .analyst-list li:nth-child(odd) { background-color: #f9fafb; }
+        .no-data-msg { color: #7f8c8d; font-style: italic; }
     </style>
 </head>
 <body>
@@ -59,7 +60,6 @@
     </div>
 
     <script>
-        // --- 1. 核心数据获取与渲染函数 ---
         async function fetchAndRender() {
             const container = document.getElementById('stock-analysis-container');
             try {
@@ -70,70 +70,74 @@
                 }
                 const data = await response.json();
                 
-                if (data.error) { throw new Error(data.error); }
-                if (!data.quote || !data.recommendation || !data.priceTarget || !data.profile) {
-                    throw new Error('API返回的数据不完整，无法渲染页面');
-                }
+                if (data.error) throw new Error(data.error);
+                // 核心的容错逻辑：只要有股价，就能渲染
+                if (!data.quote) throw new Error('API未返回最核心的股价数据');
 
-                // 渲染HTML结构
                 container.innerHTML = createStockCardHTML(data);
-                // 渲染图表
-                renderGaugeChart(data); // *** 修正点: 确保这个函数调用有正确的闭合括号 ***
-
+                // 只有在数据完整时才渲染图表
+                if (data.priceTarget) {
+                    renderGaugeChart(data);
+                }
+                
             } catch (error) {
                 console.error("初始化页面失败:", error);
                 container.innerHTML = `<div class="error card"><p style="color:red;">数据加载失败！<br>错误: ${error.message}</p></div>`;
             }
         }
 
-        // --- 2. 动态生成HTML的辅助函数 (无变化) ---
         function createStockCardHTML(data) {
             const { quote, recommendation, priceTarget, profile } = data;
             const currentPrice = quote.c;
-            const targetPrice = priceTarget.targetMean;
-            const upside = ((targetPrice / currentPrice) - 1) * 100;
+            const symbol = profile?.ticker || quote.symbol || 'N/A';
+            const name = profile?.name || 'N/A';
+            
+            // --- 优雅降级：检查每一份数据是否存在 ---
+            const hasTarget = priceTarget && priceTarget.targetMean;
+            const targetPrice = hasTarget ? priceTarget.targetMean : currentPrice;
+            const upside = hasTarget ? ((targetPrice / currentPrice) - 1) * 100 : 0;
             const isPositive = upside >= 0;
-            const totalRatings = recommendation.buy + recommendation.hold + recommendation.sell + recommendation.strongBuy + recommendation.strongSell;
 
-            const analystListHTML = `<li><span>Finnhub暂不提供详细分析师列表</span><strong></strong></li>`;
+            const hasRecommendation = recommendation && recommendation.buy !== undefined;
+            const totalRatings = hasRecommendation ? (recommendation.buy + recommendation.hold + recommendation.sell + recommendation.strongBuy + recommendation.strongSell) : 0;
 
             return `
                 <div class="stock-header">
-                    <div><div class="symbol">${profile.ticker}</div><div class="name">${profile.name}</div></div>
+                    <div><div class="symbol">${symbol}</div><div class="name">${name}</div></div>
                 </div>
                 <div class="card">
                     <div class="gauge-display">
                         <div class="gauge-side-label"><span class="value current">$${currentPrice.toFixed(2)}</span><span class="label">当前股价</span></div>
-                        <div class="gauge-container"><div class="gauge-chart" id="gauge-${profile.ticker}"></div><div class="zero-line"></div><div class="potential-summary"><div class="value ${isPositive ? 'positive' : 'negative'}">${isPositive ? '▲' : '▼'} ${Math.abs(upside).toFixed(1)}%</div><div class="label">潜在空间</div></div></div>
-                        <div class="gauge-side-label"><span class="value ${isPositive ? 'positive' : 'negative'}">$${targetPrice.toFixed(2)}</span><span class="label">未来12个月预测</span></div>
+                        <div class="gauge-container"><div class="gauge-chart" id="gauge-${symbol}"></div><div class="zero-line"></div><div class="potential-summary"><div class="value ${isPositive ? 'positive' : 'negative'}">${hasTarget ? (isPositive ? '▲' : '▼') + ` ${Math.abs(upside).toFixed(1)}%` : '--'}</div><div class="label">潜在空间</div></div></div>
+                        <div class="gauge-side-label"><span class="value ${isPositive ? 'positive' : 'negative'}">${hasTarget ? `$${targetPrice.toFixed(2)}` : 'N/A'}</span><span class="label">预测股价</span></div>
                     </div>
                 </div>
                 <div class="card">
                     <h2>分析师共识</h2>
+                    ${hasRecommendation ? `
                     <div class="consensus-grid">
                         <div class="consensus-stats">
                             <div class="stat-item"><div class="label">评级分析师</div><div class="value">${totalRatings} 位</div></div>
-                            <div class="stat-item"><div class="label">平均目标价</div><div class="value">$${targetPrice.toFixed(2)}</div></div>
-                            <div class="stat-item"><div class="label">目标价范围</div><div class="value">$${priceTarget.targetLow.toFixed(2)} - $${priceTarget.targetHigh.toFixed(2)}</div></div>
+                            <div class="stat-item"><div class="label">平均目标价</div><div class="value">${hasTarget ? `$${targetPrice.toFixed(2)}` : 'N/A'}</div></div>
+                            <div class="stat-item"><div class="label">目标价范围</div><div class="value">${hasTarget ? `$${priceTarget.targetLow.toFixed(2)} - $${priceTarget.targetHigh.toFixed(2)}` : 'N/A'}</div></div>
                         </div>
                         <div class="rating-chart">
                             <div class="bar-wrapper"><div class="bar-label">买入</div><div class="bar bar-buy" style="width: ${((recommendation.buy + recommendation.strongBuy)/totalRatings)*100}%">${recommendation.buy + recommendation.strongBuy}</div></div>
                             <div class="bar-wrapper"><div class="bar-label">持有</div><div class="bar bar-hold" style="width: ${(recommendation.hold/totalRatings)*100}%">${recommendation.hold}</div></div>
                             <div class="bar-wrapper"><div class="bar-label">卖出</div><div class="bar bar-sell" style="width: ${((recommendation.sell + recommendation.strongSell)/totalRatings)*100}%">${recommendation.sell + recommendation.strongSell}</div></div>
                         </div>
-                    </div>
-                    <div class="analyst-list-container">
-                        <h3>分析师列表</h3>
-                        <ul class="analyst-list">${analystListHTML}</ul>
-                    </div>
+                    </div>` : '<p class="no-data-msg">暂无足够的分析师评级数据。</p>'}
                 </div>
             `;
         }
 
-        // --- 3. 更新图表的函数 (无变化) ---
         function renderGaugeChart(data) {
-            const { quote, priceTarget, profile } = data;
+            // ... (图表渲染逻辑与之前版本相同) ...
+             const { quote, priceTarget, profile } = data;
             const currentPrice = quote.c;
+            const symbol = profile?.ticker || 'default';
+            if (!priceTarget || !priceTarget.targetMean) return; // 如果没目标价，不渲染图表
+
             const targetPrice = priceTarget.targetMean;
             const upside = ((targetPrice / currentPrice) - 1) * 100;
             const isPositive = upside >= 0;
@@ -146,11 +150,10 @@
             if (isPositive) { gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg 90deg, #27ae60 90deg ${90 + degree}deg, #e9ecef ${90 + degree}deg 180deg)`; } 
             else { gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg ${90 - degree}deg, #e74c3c ${90 - degree}deg 90deg, #e9ecef 90deg 180deg)`; }
             
-            const chartElement = document.getElementById(`gauge-${profile.ticker}`);
+            const chartElement = document.getElementById(`gauge-${symbol}`);
             if(chartElement) { chartElement.style.background = gradient; }
         }
 
-        // --- 4. 页面加载完成后执行 ---
         document.addEventListener('DOMContentLoaded', fetchAndRender);
     </script>
 </body>
