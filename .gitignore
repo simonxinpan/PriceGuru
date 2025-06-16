@@ -1,0 +1,1 @@
+# We want to commit package-lock.json就像一个“**施工忽略清单**”。它告诉GitHub：“嘿，当我在提交代码时，请自动忽略掉这个清单
